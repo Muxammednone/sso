@@ -2,8 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Muxammednone/sso/internal/domain"
+)
+
+var (
+	ErrNotFound = errors.New("user not found")
 )
 
 type UserRepository interface {
