@@ -1,0 +1,23 @@
+version: "3"
+
+
+tasks:
+  db:up:
+    desc: Start the local PostgreSQL database
+    cmds:
+      - docker compose up -d
+
+  db:down:
+    desc: Stop the database and preserve its data volume
+    cmds:
+      - docker compose down
+
+  db:status:
+    desc: Show database container status
+    cmds:
+      - docker compose ps
+
+  build:
+    desc: Build all Go packages
+    cmds:
+      - go build ./...
