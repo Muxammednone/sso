@@ -21,3 +21,8 @@ tasks:
     desc: Build all Go packages
     cmds:
       - go build ./...
+
+  db:migrate:
+    desc: Apply database migrations
+    cmds:
+      - docker compose run --rm migrate
