@@ -13,6 +13,7 @@ var (
 	ErrEmailRequired      = errors.New("email is required")
 	ErrPasswordRequired   = errors.New("password is required")
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
 type Service struct {
@@ -62,6 +63,9 @@ func (s *Service) Register(
 
 	createdUser, err := s.userRepository.Create(ctx, user)
 	if err != nil {
+		if errors.Is(err, repository.ErrAlreadyExists) {
+			return 0, ErrEmailAlreadyExists
+		}
 		return 0, err
 	}
 

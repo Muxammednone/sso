@@ -7,6 +7,7 @@ import (
 	"github.com/Muxammednone/sso/internal/domain"
 	"github.com/Muxammednone/sso/internal/repository"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -35,7 +36,12 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) (*domain
 		&user.ID,
 	)
 
+	var pgErr *pgconn.PgError
+
 	if err != nil {
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "users_email_key" {
+			return nil, repository.ErrAlreadyExists
+		}
 		return nil, err
 	}
 
