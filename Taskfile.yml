@@ -2,6 +2,12 @@ version: "3"
 
 
 tasks:
+  run:
+    desc: Run the SSO application
+    dotenv: ['.env']
+    cmds:
+      - go run ./cmd/sso
+
   db:up:
     desc: Start the local PostgreSQL database
     cmds:

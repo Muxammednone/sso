@@ -20,7 +20,7 @@ type Service struct {
 	tokenGenerator TokenGenerator
 }
 
-func New(
+func NewUserService(
 	userRepository repository.UserRepository,
 	tokenGenerator TokenGenerator,
 ) *Service {
