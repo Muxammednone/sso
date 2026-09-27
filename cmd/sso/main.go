@@ -9,6 +9,7 @@ import (
 	"time"
 
 	ssov1 "github.com/Muxammednone/sso-proto/gen/go/sso"
+	"github.com/Muxammednone/sso/internal/config"
 	"github.com/Muxammednone/sso/internal/repository/postgres"
 	"github.com/Muxammednone/sso/internal/service"
 	"github.com/Muxammednone/sso/internal/token"
@@ -21,41 +22,46 @@ func main() {
 	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required")
+	config, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
 	}
-	pool, err := pgxpool.New(context.Background(), databaseURL)
+
+	connectCtx, cancel := context.WithTimeout(context.Background(), config.DBTimeout)
+	defer cancel()
+
+	pool, err := pgxpool.New(connectCtx, config.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	defer pool.Close()
 
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := pool.Ping(connectCtx); err != nil {
 		log.Printf("connect to PostgreSQL: %v", err)
 		return
 	}
+	cancel()
 
 	log.Println("connected to PostgreSQL")
 
 	userRepository := postgres.NewUserRepository(pool)
-	jwtToken := token.NewJWTGenerator([]byte(os.Getenv("JWT_SECRET")), time.Hour)
+	jwtToken := token.NewJWTGenerator([]byte(config.JWTSecret), config.TokenTTL)
 	userService := service.NewUserService(userRepository, jwtToken)
 
 	handler := transport_grpc.NewServer(userService)
 	grpcServer := grpc.NewServer()
 	ssov1.RegisterSSOServer(grpcServer, handler)
 
-	listener, err := net.Listen("tcp", "127.0.0.1:50051")
+	listener, err := net.Listen("tcp", config.GRPCAddr)
 
 	if err != nil {
-		log.Printf("Listen tcp server on port '127.0.0.1:50051': %v", err)
+		log.Printf("Listen tcp server on port '%v': %v", config.GRPCAddr, err)
 		return
 	}
 	defer listener.Close()
 
-	log.Print("Listen tcp server on port '127.0.0.1:50051'")
+	log.Printf("Listen tcp server on port: '%v'", config.GRPCAddr)
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -79,7 +85,7 @@ func main() {
 		close(stopped)
 	}()
 
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(config.ShutdownTimeout)
 	defer timer.Stop()
 	select {
 	case <-stopped:
