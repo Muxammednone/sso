@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"time"
 
 	ssov1 "github.com/Muxammednone/sso-proto/gen/go/sso"
@@ -17,6 +18,9 @@ import (
 )
 
 func main() {
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
@@ -53,9 +57,37 @@ func main() {
 
 	log.Print("Listen tcp server on port '127.0.0.1:50051'")
 
-	err = grpcServer.Serve(listener)
-	if err != nil {
-		log.Printf("serve 'listener': %v", err)
+	serveErr := make(chan error, 1)
+	go func() {
+		serveErr <- grpcServer.Serve(listener)
+	}()
+
+	select {
+	case err := <-serveErr:
+		grpcServer.Stop()
+		if err != nil {
+			log.Printf("serve: %v", err)
+		}
 		return
+	case <-shutdownCtx.Done():
+		log.Println("stopping gRPC server")
 	}
+
+	stopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(stopped)
+	}()
+
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-stopped:
+	case <-timer.C:
+		log.Println("shutdown timeout: forcing gRPC server to stop")
+		grpcServer.Stop()
+		<-stopped
+	}
+
+	log.Println("gRPC server stopped")
 }
